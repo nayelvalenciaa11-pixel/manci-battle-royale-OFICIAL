@@ -8,7 +8,7 @@ const zlib = require('zlib');
 const { WebSocketServer } = require('ws');
 
 const PORT = Number(process.env.PORT) || 3000;
-const ROOT = path.join(__dirname, 'public');
+const ROOT = __dirname;
 
 // Botones/HUD de cada jugador (por nombre), para que se conserven aunque el navegador borre sus datos
 const UI_FILE = path.join(__dirname, 'ui-settings.json');
