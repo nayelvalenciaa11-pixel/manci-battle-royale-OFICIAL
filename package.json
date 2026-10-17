@@ -1,0 +1,15 @@
+{
+  "name": "parque-shooter",
+  "version": "1.0.0",
+  "description": "Prototipo de juego de disparos 3D en el navegador con multijugador por red local (LAN)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "babylonjs": "^7.0.0",
+    "babylonjs-loaders": "^7.0.0",
+    "qrcode-terminal": "^0.12.0",
+    "ws": "^8.18.0"
+  }
+}

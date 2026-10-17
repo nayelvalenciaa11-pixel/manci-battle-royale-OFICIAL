@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: manci-battle-royale
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MIN_PLAYERS
+        value: "2"
+      - key: KILL_GOAL
+        value: "10"

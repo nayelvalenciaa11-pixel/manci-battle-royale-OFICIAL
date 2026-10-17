@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1f3a2b">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Manci BR">
+<link rel="manifest" href="/manifest.json">
+<title>Manci Battle Royale</title>
+<style>
+  :root {
+    --moss: #1f3a2b;
+    --moss-soft: rgba(31, 58, 43, 0.78);
+    --chalk: #f2efe4;
+    --sun: #f0c24b;
+    --hit: #e4572e;
+    --grones: #3b82c4;
+    --gallinas: #e4572e;
+    --font: "Avenir Next", "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+    --radar: 150px;
+  }
+  body.touch { --radar: 120px; }
+  * { box-sizing: border-box; }
+  .hidden { display: none !important; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #9ec9e8;
+    color: var(--chalk); font-family: var(--font);
+    touch-action: none; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+  /* En PC, oculta el cursor durante la partida tipo FPS; vuelve en los menús. */
+  body.playing:not(.touch) #c { cursor: none; }
+  body.playing:not(.touch) { cursor: none; }
+
+  /* Pantalla de entrada */
+  #overlay {
+    position: fixed; inset: 0; z-index: 20; display: flex; overflow-y: auto; touch-action: pan-y;
+    padding: 16px max(5vw, env(safe-area-inset-left));
+    background: rgba(20, 38, 28, 0.82);
+  }
+  .join {
+    display: grid; grid-template-columns: minmax(250px, 330px) minmax(0, 1fr); gap: 28px;
+    width: 100%; max-width: 940px; margin: auto 0; align-items: center;
+  }
+  @media (max-width: 640px) { .join { grid-template-columns: 1fr; } }
+
+  /* Pantalla de inicio: título arriba y el cuadro del nombre abajo */
+  .start { width: 100%; max-width: 420px; margin: auto; text-align: center; }
+  .start .panel h1 { font-size: clamp(30px, 7vw, 52px); font-weight: 900; text-transform: uppercase; margin-bottom: 18px; }
+  .start .panel p { margin-left: auto; margin-right: auto; }
+  .start .help { text-align: left; }
+
+  /* Sala de espera */
+  #lobby {
+    position: fixed; inset: 0; z-index: 20; display: flex; overflow-y: auto; touch-action: pan-y;
+    padding: 16px; background: linear-gradient(160deg, #1f3a2b, #14261c);
+  }
+  .lobby-box { width: min(460px, 100%); margin: auto; text-align: center; }
+  .lobby-box h2 { margin: 0 0 4px; font-size: clamp(24px, 6vw, 36px); font-weight: 900; text-transform: uppercase; }
+  #lobbyInfo { min-height: 22px; font-size: 15px; opacity: 0.9; }
+  #lobbyList { list-style: none; margin: 14px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+  #lobbyList li {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 16px; border-radius: 10px; border: 2px solid transparent;
+    background: rgba(242, 239, 228, 0.12); font-size: 18px; font-weight: 700;
+  }
+  #lobbyList li.me { border-color: var(--sun); }
+  .chk {
+    flex: none; width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(242, 239, 228, 0.4);
+    display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 900; color: transparent;
+  }
+  #lobbyList li.ready .chk { background: #2ecc71; border-color: #2ecc71; color: #fff; }
+  #readyBtn {
+    width: 100%; padding: 14px 16px; font: inherit; font-size: 18px; font-weight: 800; letter-spacing: 0.02em;
+    color: var(--moss); border: 0; border-radius: 12px; cursor: pointer;
+    background: linear-gradient(160deg, #ffd96b, #e9a92a);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  #readyBtn.on { background: linear-gradient(160deg, #5be38b, #2ecc71); color: #fff; }
+  .panel h1 { margin: 0 0 6px; font-size: clamp(38px, 8vw, 60px); line-height: 1; font-weight: 800; letter-spacing: -0.02em; }
+  .panel p { margin: 0 0 14px; font-size: 16px; line-height: 1.4; max-width: 34ch; }
+  .panel input {
+    width: 100%; padding: 13px 16px; margin-bottom: 10px; font: inherit; font-size: 18px;
+    color: var(--moss); background: var(--chalk); border: 0; border-radius: 10px; outline: none;
+    -webkit-user-select: text; user-select: text;
+  }
+  .panel input:focus-visible { box-shadow: 0 0 0 3px var(--sun); }
+
+  .teams { display: flex; gap: 10px; margin-bottom: 10px; }
+  .team-btn {
+    flex: 1; padding: 12px 8px; font: inherit; font-size: 18px; font-weight: 800; color: var(--chalk);
+    background: rgba(242, 239, 228, 0.06); border: 3px solid; border-radius: 12px; cursor: pointer;
+    transition: transform 0.1s, background 0.15s, box-shadow 0.15s;
+  }
+  .team-btn:hover { background: rgba(242, 239, 228, 0.14); }
+  .team-btn:active { transform: scale(0.97); }
+  .team-btn.sel { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+  #teamGrones { border-color: var(--grones); }
+  #teamGallinas { border-color: var(--gallinas); }
+  #teamGrones.sel { background: var(--grones); }
+  #teamGallinas.sel { background: var(--gallinas); }
+  .team-btn:focus-visible { outline: 3px solid var(--chalk); outline-offset: 2px; }
+
+  #playBtn {
+    width: 100%; padding: 14px 16px; font: inherit; font-size: 18px; font-weight: 800; letter-spacing: 0.02em;
+    color: var(--moss); border: 0; border-radius: 12px; cursor: pointer;
+    background: linear-gradient(160deg, #ffd96b, #e9a92a);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    transition: transform 0.1s, filter 0.15s;
+  }
+  #playBtn:hover:not(:disabled) { filter: brightness(1.06); }
+  #playBtn:active:not(:disabled) { transform: scale(0.98); }
+  #playBtn:focus-visible { outline: 3px solid var(--chalk); outline-offset: 2px; }
+  #playBtn:disabled { opacity: 0.6; cursor: default; }
+  #status { min-height: 22px; margin: 10px 0 0; font-size: 15px; }
+  #status.error { color: #ffb4a0; }
+  .help { margin-top: 10px; font-size: 14px; line-height: 1.5; opacity: 0.9; }
+  .help .when-touch { display: none; }
+  body.touch .help .when-desktop { display: none; }
+  body.touch .help .when-touch { display: block; }
+
+  /* Tarjetas de armas */
+  .wgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 10px; }
+  .wcard {
+    text-align: left; padding: 12px; border-radius: 12px; border: 2px solid transparent;
+    background: rgba(242, 239, 228, 0.12); color: var(--chalk); font: inherit; cursor: pointer;
+  }
+  .wcard.sel { border-color: var(--sun); background: rgba(240, 194, 75, 0.2); }
+  .wcard:focus-visible { outline: 3px solid var(--chalk); outline-offset: 2px; }
+  .wcard b { display: block; font-size: 17px; margin-bottom: 6px; }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 3px; }
+  .stat > span:first-child { width: 58px; opacity: 0.85; }
+  .pips { display: flex; gap: 2px; }
+  .pips i { width: 14px; height: 6px; border-radius: 2px; background: rgba(242, 239, 228, 0.25); }
+  .pips i.on { background: var(--sun); }
+
+  /* Menú de armas dentro de la partida */
+  #weaponMenu {
+    position: fixed; inset: 0; z-index: 30; display: flex; overflow-y: auto; touch-action: pan-y;
+    padding: 16px; background: rgba(20, 38, 28, 0.88);
+  }
+  .menu-box { width: min(760px, 100%); margin: auto; }
+  #moveBtn {
+    width: 100%; margin-top: 10px; padding: 12px 16px; font: inherit; font-size: 16px; font-weight: 700;
+    color: var(--chalk); background: transparent; border: 2px solid rgba(242, 239, 228, 0.6); border-radius: 10px; cursor: pointer;
+  }
+  #menuClose {
+    width: 100%; margin-top: 14px; padding: 13px 16px; font: inherit; font-size: 17px; font-weight: 800;
+    color: var(--moss); border: 0; border-radius: 12px; cursor: pointer;
+    background: linear-gradient(160deg, #ffd96b, #e9a92a);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+
+  /* HUD */
+  .hud { position: fixed; z-index: 10; pointer-events: none; display: none; }
+  body.playing .hud { display: block; }
+  #crosshair { left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; z-index: 20; }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #39ff14; box-shadow: 0 0 0 1px #000; }
+  #crosshair::before { left: 6px; top: 0; width: 2px; height: 14px; }
+  #crosshair::after { top: 6px; left: 0; height: 2px; width: 14px; }
+
+  /* Marca X al impactar a un enemigo (roja y más grande si lo eliminas) */
+  #hitmark { left: 50%; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; opacity: 0; }
+  #hitmark::before, #hitmark::after {
+    content: ""; position: absolute; left: 13px; top: -4px; width: 4px; height: 38px;
+    background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.5);
+  }
+  #hitmark::before { transform: rotate(45deg); }
+  #hitmark::after { transform: rotate(-45deg); }
+  #hitmark.kill::before, #hitmark.kill::after { background: var(--hit); height: 50px; top: -10px; }
+  #hitmark.show { animation: hm 0.3s ease-out forwards; }
+  @keyframes hm { from { opacity: 1; transform: scale(1.6); } to { opacity: 0; transform: scale(1); } }
+
+  /* Minimapa (radar) arriba a la izquierda */
+  #radar { left: max(10px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); border-radius: 50%; box-shadow: 0 2px 12px rgba(0,0,0,0.35); }
+
+  #hp { left: 50%; top: max(10px, env(safe-area-inset-top)); transform: translateX(-50%); width: min(220px, 36vw); }
+  #hp .bar { height: 12px; background: rgba(0,0,0,0.4); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.35); }
+  #hpFill { height: 100%; width: 100%; background: var(--sun); transition: width 0.15s; }
+  #hp.low #hpFill { background: var(--hit); }
+  #hp .txt { margin-top: 3px; font-size: 13px; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+
+  #score {
+    right: max(10px, env(safe-area-inset-right)); top: max(10px, env(safe-area-inset-top));
+    min-width: 170px; padding: 8px 10px; background: var(--moss-soft); border-radius: 10px; font-size: 14px;
+  }
+  #score .teamsrow { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.2); font-weight: 800; }
+  #score .row { display: flex; justify-content: space-between; gap: 14px; padding: 2px 0 2px 6px; border-left: 4px solid transparent; }
+  #score .row.t-grones { border-left-color: var(--grones); }
+  #score .row.t-gallinas { border-left-color: var(--gallinas); }
+  #score .row.me { font-weight: 800; }
+
+  #feed { left: max(10px, env(safe-area-inset-left)); top: calc(max(10px, env(safe-area-inset-top)) + var(--radar) + 8px); font-size: 14px; }
+  #feed div { margin-bottom: 4px; padding: 4px 8px; background: var(--moss-soft); border-radius: 8px; width: fit-content; }
+
+  #banner {
+    left: 50%; top: 22%; transform: translateX(-50%); padding: 14px 26px; border-radius: 14px;
+    font-size: clamp(22px, 5vw, 38px); font-weight: 800; background: var(--moss-soft); text-align: center;
+  }
+
+  #flash { inset: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(228, 87, 46, 0.55) 100%); opacity: 0; transition: opacity 0.35s; }
+  #flash.on { opacity: 1; transition: none; }
+
+  /* Controles táctiles */
+  #touchUi { display: none; }
+  body.touch.playing #touchUi { display: block; }
+  #stick {
+    position: fixed; z-index: 11; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
+    background: rgba(242, 239, 228, 0.1); border: 2px solid rgba(242, 239, 228, 0.3); display: none; pointer-events: none;
+  }
+  #knob { position: absolute; left: 34px; top: 34px; width: 52px; height: 52px; border-radius: 50%; background: rgba(242, 239, 228, 0.5); }
+  /* Botones de acción: cristal oscuro con icono y etiqueta */
+  .abtn {
+    position: fixed; z-index: 11; width: 64px; height: 64px; padding: 0; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    color: var(--chalk); font: 800 9px/1 var(--font); letter-spacing: 0.03em; text-transform: uppercase;
+    background:
+      radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 56%),
+      rgba(20, 38, 28, 0.28);
+    border: 1.5px solid rgba(242, 239, 228, 0.35);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    opacity: 0.75;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    touch-action: none; cursor: pointer;
+    transition: transform 0.08s ease-out, background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  }
+  .abtn > *, #fireBtn > * { pointer-events: none; }
+  .abtn svg, #fireBtn svg { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+  .abtn svg { width: 26px; height: 26px; }
+  .abtn.down { transform: scale(0.9); opacity: 1; }
+  /* Activo (correr / agacharse encendidos) */
+  .abtn.on {
+    color: var(--moss); border-color: #fff3c4; opacity: 0.9;
+    background: radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0) 56%), linear-gradient(160deg, #ffe08a, var(--sun));
+    box-shadow: 0 0 0 4px rgba(240, 194, 75, 0.35), 0 5px 16px rgba(0, 0, 0, 0.38);
+  }
+  #runBtn    { left: max(24px, env(safe-area-inset-left)); bottom: max(24px, env(safe-area-inset-bottom)); }
+  #jumpBtn   { right: calc(max(28px, env(safe-area-inset-right)) + 16px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 110px); }
+  #crouchBtn { right: calc(max(28px, env(safe-area-inset-right)) + 98px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 90px); }
+  #reloadBtn { right: calc(max(28px, env(safe-area-inset-right)) + 112px); bottom: max(40px, env(safe-area-inset-bottom)); }
+  #aimBtn    { right: calc(max(28px, env(safe-area-inset-right)) + 98px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 164px); }
+  #nadeBtn   { right: calc(max(28px, env(safe-area-inset-right)) + 176px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 164px); }
+  #nadeHud {
+    left: 50%; bottom: calc(66px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    padding: 3px 12px; border-radius: 999px; font-size: 14px; font-weight: 800; white-space: nowrap;
+    color: #b6ff9e; background: var(--moss-soft);
+  }
+  #smokeBtn  { right: calc(max(28px, env(safe-area-inset-right)) + 254px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 164px); }
+  #smokeBtn svg { color: #c58bff; }
+  #proneBtn  { right: calc(max(28px, env(safe-area-inset-right)) + 176px); bottom: calc(max(28px, env(safe-area-inset-bottom)) + 90px); }
+
+  /* Racha de bajas: aviso propio y fila en llamas en el marcador */
+  #streakBadge {
+    left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 40px); transform: translateX(-50%);
+    padding: 5px 14px; border-radius: 999px; font-size: 15px; font-weight: 900; letter-spacing: 0.04em;
+    color: #ffe3a0; background: rgba(60, 18, 0, 0.8); border: 2px solid #ff7a1a;
+    animation: flame 0.45s ease-in-out infinite alternate;
+  }
+  #score .row.burning > span:first-child { color: #ffb347; text-shadow: 0 0 6px #ff6a00; }
+  @keyframes flame {
+    from { box-shadow: 0 0 6px 1px rgba(255, 122, 26, 0.55); }
+    to   { box-shadow: 0 0 16px 4px rgba(255, 190, 40, 0.85); }
+  }
+
+  /* Visor del francotirador: círculo con cruz y un hueco en el centro */
+  #scope {
+    inset: 0; z-index: 9;
+    background:
+      linear-gradient(90deg, #000 0 calc(50% - 14px), transparent calc(50% - 14px) calc(50% + 14px), #000 calc(50% + 14px)) center / 100% 2px no-repeat,
+      linear-gradient(180deg, #000 0 calc(50% - 14px), transparent calc(50% - 14px) calc(50% + 14px), #000 calc(50% + 14px)) center / 2px 100% no-repeat,
+      radial-gradient(circle at center, transparent 0, transparent 38vmin, #000 38.4vmin);
+  }
+  #scope::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; background: #ff3b30;
+  }
+  #scopeZoom {
+    position: absolute; left: 50%; top: calc(50% + 31vmin); transform: translateX(-50%);
+    font: 800 16px var(--font); letter-spacing: 0.05em; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  }
+
+  #fireBtn {
+    position: fixed; z-index: 11; right: max(28px, env(safe-area-inset-right)); bottom: max(28px, env(safe-area-inset-bottom));
+    width: 96px; height: 96px; border-radius: 50%; color: var(--moss);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    font: 800 11px/1 var(--font); letter-spacing: 0.08em; text-transform: uppercase; touch-action: none;
+    background:
+      radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 52%),
+      linear-gradient(160deg, #ffd96b, #e9a92a);
+    border: 3px solid #fff6d8; opacity: 0.55;
+    box-shadow: 0 0 0 5px rgba(240, 194, 75, 0.2), 0 6px 16px rgba(0, 0, 0, 0.3), inset 0 -4px 8px rgba(160, 90, 0, 0.3);
+    transition: transform 0.08s ease-out, background 0.1s, color 0.1s;
+  }
+  #fireBtn svg { width: 38px; height: 38px; stroke-width: 2.4; }
+  #fireBtn.down {
+    transform: scale(0.93); color: #fff; opacity: 0.85;
+    background: radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 52%), linear-gradient(160deg, #f0703f, #c93f17);
+    border-color: #ffd2c0;
+    box-shadow: 0 0 0 5px rgba(228, 87, 46, 0.35), 0 8px 20px rgba(0, 0, 0, 0.42);
+  }
+  #editBar {
+    position: fixed; z-index: 25; left: 50%; top: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+    padding: 8px 10px 8px 16px; border-radius: 12px; background: var(--moss-soft); font-size: 15px;
+  }
+  #editDone {
+    padding: 8px 16px; font: 700 15px var(--font); color: var(--moss); background: var(--sun); border: 0; border-radius: 8px; cursor: pointer;
+  }
+
+  /* Personalizar botones y HUD */
+  #optBtn {
+    position: fixed; z-index: 12; display: none; align-items: center; justify-content: center; padding: 0;
+    left: calc(max(10px, env(safe-area-inset-left)) + var(--radar) + 10px); top: max(10px, env(safe-area-inset-top));
+    width: 38px; height: 38px; border-radius: 50%; color: var(--chalk); cursor: pointer; opacity: 0.8;
+    background: rgba(20, 38, 28, 0.45); border: 1.5px solid rgba(242, 239, 228, 0.4);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  #optBtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+  body.playing #optBtn { display: flex; }
+  body.ui-edit, body.ui-edit #c { cursor: default !important; }
+  body.ui-edit .ui-el { outline: 2px dashed rgba(255, 255, 255, 0.75); outline-offset: 3px; }
+  body.ui-edit .ui-el.ui-sel { outline: 3px solid var(--sun); }
+  body.ui-edit #feed { min-width: 150px; min-height: 40px; }
+  #uiBar {
+    position: fixed; z-index: 26; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: min(400px, 92vw); padding: 6px 12px 10px; display: grid; gap: 8px; touch-action: none;
+    background: rgba(20, 38, 28, 0.32); border: 1px solid rgba(242, 239, 228, 0.16); border-radius: 12px;
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22); font-size: 14px;
+  }
+  #uiBar.drag { opacity: 0.8; }
+  #uiGrip {
+    display: flex; align-items: center; gap: 8px; padding: 6px 2px 7px; cursor: grab; user-select: none; -webkit-user-select: none;
+    touch-action: none; border-bottom: 1px solid rgba(242, 239, 228, 0.16);
+  }
+  #uiBar.drag #uiGrip { cursor: grabbing; }
+  #uiGrip .grab { opacity: 0.75; font-size: 17px; line-height: 1; letter-spacing: -2px; }
+  #uiBar .uiRow { display: grid; grid-template-columns: 96px 1fr 44px; align-items: center; gap: 8px; }
+  #uiBar input[type=range] { width: 100%; margin: 0; accent-color: var(--sun); }
+  #uiBar output { text-align: right; font-weight: 800; }
+  #uiName { font-size: 14px; }
+  #uiBar .uiBtns { display: flex; gap: 8px; }
+  #uiBar .uiBtns button {
+    flex: 1; padding: 9px 6px; font: 700 13px var(--font); color: var(--chalk); cursor: pointer;
+    background: rgba(20, 38, 28, 0.25); border: 2px solid rgba(242, 239, 228, 0.5); border-radius: 8px;
+  }
+  #uiBar .uiBtns button:disabled { opacity: 0.4; }
+  #uiBar .uiBtns #uiDone { color: var(--moss); background: var(--sun); border-color: var(--sun); }
+  @media (max-height: 420px) { #uiBar { padding: 7px 10px; gap: 5px; } #uiBar .uiBtns button { padding: 6px; } }
+
+  #rotate {
+    position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+    padding: 30px; text-align: center; font-size: 20px; background: var(--moss);
+  }
+  @media (orientation: portrait) { body.touch #rotate { display: flex; } }
+</style>
+</head>
+<body>
+<canvas id="c" tabindex="-1"></canvas>
+
+<div id="overlay">
+  <div class="start">
+    <div class="panel">
+      <h1><b>MANCI BATTLE ROYALE</b></h1>
+      <p>Escribe tu nombre para entrar.</p>
+      <input id="nameInput" type="text" maxlength="12" placeholder="Tu nombre" autocomplete="off" autocapitalize="words" spellcheck="false">
+      <button id="playBtn" type="button">Entrar</button>
+      <div id="status" role="status"></div>
+      <div class="help">
+        <div class="when-desktop">Mover: W A S D. Apuntar: mouse. Disparar: clic. Apuntar: clic derecho (mantener). Francotirador: rueda del mouse o Z cambia el zoom. Correr: Shift. Saltar: Espacio. Arrodillarse: Ctrl izquierdo o C (alternar). Cuerpo a tierra: X (alternar; Saltar o Correr te levantan). Granada: G (mantener para ver la trayectoria, soltar para lanzar). Recargar: R. Armas: teclas 1 a 9, rueda del mouse, o Q para el menú. Humo morado: H (mantener para ver la trayectoria, soltar para lanzar). Soltar el mouse: Esc. Personalizar botones y HUD: tecla O.</div>
+        <div class="when-touch">Mover: arrastra con el pulgar izquierdo. Apuntar: arrastra con el derecho. Disparar: botón amarillo (si lo mantienes y arrastras, también apuntas). Recargar: botón Recargar. Apuntar: botón Apuntar (con el francotirador, tócalo otra vez para más zoom). Correr (a la izquierda), Agachar y Tumbarse (cuerpo a tierra) se encienden y apagan al tocarlos; Saltar es un toque. Granada: mantén el botón Granada para ver la trayectoria y suéltalo para lanzar. Humo morado: igual con el botón Humo. Cambiar arma: toca la barra de armas de abajo (toca otra vez el arma elegida para abrir el menú).</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="lobby" class="hidden">
+  <div class="lobby-box">
+    <h2>Sala de espera</h2>
+    <div id="lobbyInfo" role="status"></div>
+    <ul id="lobbyList"></ul>
+    <button id="readyBtn" type="button">LISTO</button>
+  </div>
+</div>
+
+<div id="weaponMenu" class="hidden">
+  <div class="menu-box">
+    <div id="weaponGridMenu" class="wgrid"></div>
+    <button id="moveBtn" type="button">Personalizar botones y HUD</button>
+    <button id="menuClose" type="button">Volver al juego</button>
+  </div>
+</div>
+
+<div id="crosshair" class="hud"></div>
+<div id="hitmark" class="hud"></div>
+<canvas id="radar" class="hud"></canvas>
+<div id="hp" class="hud"><div class="bar"><div id="hpFill"></div></div><div class="txt" id="hpText">Vida 100</div></div>
+<div id="score" class="hud"></div>
+<div id="feed" class="hud"></div>
+<div id="banner" class="hud hidden"></div>
+<div id="streakBadge" class="hud hidden"></div>
+<div id="nadeHud" class="hud"></div>
+<div id="flash" class="hud"></div>
+<div id="scope" class="hud hidden"><span id="scopeZoom">x3</span></div>
+
+<div id="touchUi">
+  <div id="stick"><div id="knob"></div></div>
+  <button id="runBtn" class="abtn" type="button" aria-label="Correr" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><path d="M5 6l6 6-6 6"/><path d="M12 6l6 6-6 6"/></svg><span>Correr</span>
+  </button>
+  <button id="crouchBtn" class="abtn" type="button" aria-label="Agacharse" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/></svg><span>Agachar</span>
+  </button>
+  <button id="proneBtn" class="abtn" type="button" aria-label="Cuerpo a tierra" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><path d="M3 18h18"/><circle cx="6" cy="13" r="2"/><path d="M9 14h8l4 4"/></svg><span>Tumbarse</span>
+  </button>
+  <button id="nadeBtn" class="abtn" type="button" aria-label="Granada">
+    <svg viewBox="0 0 24 24"><path d="M12 21v-8"/><path d="M12 13c-4 0-6-3-6-6 3 0 6 2 6 6z"/><path d="M12 13c4 0 6-3 6-6-3 0-6 2-6 6z"/><path d="M12 13V4"/></svg><span>Granada</span>
+  </button>
+  <button id="smokeBtn" class="abtn" type="button" aria-label="Humo">
+    <svg viewBox="0 0 24 24"><path d="M12 21v-8"/><path d="M12 13c-4 0-6-3-6-6 3 0 6 2 6 6z"/><path d="M12 13c4 0 6-3 6-6-3 0-6 2-6 6z"/><path d="M12 13V4"/></svg><span>Humo</span>
+  </button>
+  <button id="jumpBtn" class="abtn" type="button" aria-label="Saltar">
+    <svg viewBox="0 0 24 24"><path d="M12 20V9"/><path d="M7 13l5-5 5 5"/><path d="M5 4h14"/></svg><span>Saltar</span>
+  </button>
+  <button id="reloadBtn" class="abtn" type="button" aria-label="Recargar">
+    <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg><span>Recargar</span>
+  </button>
+  <button id="aimBtn" class="abtn" type="button" aria-label="Apuntar" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg><span>Apuntar</span>
+  </button>
+  <div id="fireBtn" role="button" aria-label="Disparar">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><span>Disparar</span>
+  </div>
+</div>
+
+<div id="editBar" class="hidden"><span>Arrastra el botón de disparo</span><button id="editDone" type="button">Listo</button></div>
+
+<button id="optBtn" type="button" aria-label="Opciones">
+  <svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9M4 12h16"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+</button>
+
+<div id="uiBar" class="hidden">
+  <div id="uiGrip"><span class="grab">⠿</span><b id="uiName">Toca un elemento para elegirlo</b></div>
+  <div class="uiRow"><span>Transparencia</span><input id="uiOp" type="range" min="15" max="100" step="1" value="100" disabled><output id="uiOpV"></output></div>
+  <div class="uiRow"><span>Tamaño</span><input id="uiSz" type="range" min="50" max="200" step="1" value="100" disabled><output id="uiSzV"></output></div>
+  <div class="uiBtns"><button id="uiResetOne" type="button" disabled>Restablecer este</button><button id="uiResetAll" type="button">Restablecer todo</button><button id="uiDone" type="button">Listo</button></div>
+</div>
+
+<div id="rotate">Gira el celular en horizontal para jugar.</div>
+
+<script src="/lib/babylon.js"></script>
+<script src="/lib/babylonjs.loaders.min.js"></script>
+<script src="/game.js"></script>
+</body>
+</html>
